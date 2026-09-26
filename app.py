@@ -3,13 +3,15 @@ import streamlit as st
 import pandas as pd
 import joblib
 import colorsys
+from PIL import Image
+app_icon = Image.open("NO predictor_PNG")
 
 # -----------------------------
 # Page settings
 # -----------------------------
 st.set_page_config(
-    page_title="NO Prediction",
-    page_icon="🧪",
+    page_title="NO Predictor",
+    page_icon=app_icon,
     layout="centered"
 )
 
@@ -58,7 +60,14 @@ def predict_no(R, G, B):
 # -----------------------------
 # App interface
 # -----------------------------
-st.title("🧪 NO Prediction System")
+col1, col2 = st.columns([1, 5])
+
+with col1:
+    st.image(app_icon, width=90)
+
+with col2:
+    st.title("NO Predictor")
+    st.caption("RGB-based NO Prediction System")
 
 st.write(
     "RAW 264.7 세포 배양액의 RGB 값을 입력하면 "
