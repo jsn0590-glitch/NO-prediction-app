@@ -1,159 +1,280 @@
-
 import streamlit as st
 import pandas as pd
 import joblib
-import colorsys
 from PIL import Image
+
+
+# =========================================================
+# Page settings
+# =========================================================
+
 app_icon = Image.open("NO predictor_PNG.png")
 
-# -----------------------------
-# Page settings
-# -----------------------------
 st.set_page_config(
     page_title="NO Predictor",
     page_icon=app_icon,
     layout="centered"
 )
 
-# -----------------------------
-# Load trained model
-# -----------------------------
-model = joblib.load("NO_prediction_model.pkl")
 
-# -----------------------------
-# Prediction function
-# -----------------------------
-def predict_no(R, G, B):
+# =========================================================
+# Load model
+# =========================================================
 
-    # Normalized G
-    total = R + G + B
+model_package = joblib.load(
+    "NO_prediction_control_model.pkl"
+)
 
-    if total == 0:
-        return None, None, None
-
-    norm_G = G / total
-
-    # RGB -> HSV -> Hue
-    r = R / 255
-    g = G / 255
-    b = B / 255
-
-    h, s, v = colorsys.rgb_to_hsv(r, g, b)
-
-    hue = h * 360
-
-    # Model input
-    input_data = pd.DataFrame(
-        [[hue, norm_G]],
-        columns=["Hue_deg", "norm_G"]
-    )
-
-    # Prediction
-    raw_prediction = model.predict(input_data)[0]
-
-    # Display value cannot be negative
-    predicted_no = max(0, raw_prediction)
-
-    return predicted_no, hue, norm_G
+model = model_package["model"]
+features = model_package["features"]
 
 
-# -----------------------------
-# App interface
-# -----------------------------
+# =========================================================
+# Header
+# =========================================================
+
 col1, col2 = st.columns([1, 5])
 
 with col1:
-    st.image(app_icon, width=90)
+    st.image(app_icon, width=85)
 
 with col2:
     st.title("NO Predictor")
-    st.caption("RGB-based NO Prediction System")
+    st.caption("Control-referenced RGB-based NO prediction")
+
 
 st.write(
-    "RAW 264.7 세포 배양액의 RGB 값을 입력하면 "
-    "NO 농도를 예측합니다."
+    "Control과 Sample의 RGB 값을 입력하면 "
+    "배지 색상 정보를 기반으로 NO 농도를 예측합니다."
 )
 
-st.subheader("RGB 입력")
 
-R = st.number_input(
-    "Red (R)",
-    min_value=0.0,
-    max_value=255.0,
-    value=170.0,
-    step=0.001,
-    format="%.3f"
-)
+# =========================================================
+# Control RGB
+# =========================================================
 
-G = st.number_input(
-    "Green (G)",
-    min_value=0.0,
-    max_value=255.0,
-    value=125.0,
-    step=0.001,
-    format="%.3f"
-)
+st.subheader("1. Control RGB")
 
-B = st.number_input(
-    "Blue (B)",
-    min_value=0.0,
-    max_value=255.0,
-    value=130.0,
-    step=0.001,
-    format="%.3f"
-)
+c1, c2, c3 = st.columns(3)
 
-# -----------------------------
-# Prediction button
-# -----------------------------
-if st.button("NO 예측", type="primary"):
+with c1:
+    control_r = st.number_input(
+        "Control R",
+        min_value=0.0,
+        max_value=255.0,
+        value=150.0,
+        step=0.001
+    )
 
-    predicted_no, hue, norm_G = predict_no(R, G, B)
+with c2:
+    control_g = st.number_input(
+        "Control G",
+        min_value=0.0,
+        max_value=255.0,
+        value=105.0,
+        step=0.001
+    )
 
-    if predicted_no is None:
+with c3:
+    control_b = st.number_input(
+        "Control B",
+        min_value=0.0,
+        max_value=255.0,
+        value=107.0,
+        step=0.001
+    )
 
-        st.error("RGB 값의 합이 0일 수 없습니다.")
+
+# =========================================================
+# Sample RGB
+# =========================================================
+
+st.subheader("2. Sample RGB")
+
+s1, s2, s3 = st.columns(3)
+
+with s1:
+    sample_r = st.number_input(
+        "Sample R",
+        min_value=0.0,
+        max_value=255.0,
+        value=150.0,
+        step=0.001
+    )
+
+with s2:
+    sample_g = st.number_input(
+        "Sample G",
+        min_value=0.0,
+        max_value=255.0,
+        value=120.0,
+        step=0.001
+    )
+
+with s3:
+    sample_b = st.number_input(
+        "Sample B",
+        min_value=0.0,
+        max_value=255.0,
+        value=110.0,
+        step=0.001
+    )
+
+
+# =========================================================
+# Prediction
+# =========================================================
+
+if st.button(
+    "NO 예측",
+    type="primary",
+    use_container_width=True
+):
+
+    control_total = (
+        control_r +
+        control_g +
+        control_b
+    )
+
+    sample_total = (
+        sample_r +
+        sample_g +
+        sample_b
+    )
+
+    if control_total == 0 or sample_total == 0:
+
+        st.error(
+            "RGB 값의 합은 0보다 커야 합니다."
+        )
 
     else:
 
-        st.divider()
+        # Control normalized RGB
+        control_norm_r = control_r / control_total
+        control_norm_g = control_g / control_total
+        control_norm_b = control_b / control_total
 
-        st.subheader("예측 결과")
+        # Sample normalized RGB
+        sample_norm_r = sample_r / sample_total
+        sample_norm_g = sample_g / sample_total
+        sample_norm_b = sample_b / sample_total
 
-        st.metric(
-            label="Predicted NO concentration",
-            value=f"{predicted_no:.2f} μM"
+        # Model input
+        input_data = pd.DataFrame(
+            [[
+                sample_norm_r,
+                sample_norm_g,
+                sample_norm_b,
+                control_norm_r,
+                control_norm_g,
+                control_norm_b
+            ]],
+            columns=features
         )
 
-        st.write(f"Hue: **{hue:.2f}°**")
-        st.write(f"Normalized G: **{norm_G:.4f}**")
+        prediction = model.predict(
+            input_data
+        )[0]
 
-        # Training NO range
-        if predicted_no > 17.08333:
 
-            st.warning(
-                "예측값이 모델 학습 NO 범위 "
-                "(0.61–17.08 μM)를 초과했습니다. "
-                "해석에 주의하세요."
+        # =================================================
+        # Result
+        # =================================================
+
+        st.divider()
+
+        st.subheader("Prediction Result")
+
+        st.metric(
+            "Predicted NO concentration",
+            f"{prediction:.2f} μM"
+        )
+
+
+        # =================================================
+        # Calculated color information
+        # =================================================
+
+        sample_gb = (
+            sample_g / sample_b
+            if sample_b != 0
+            else None
+        )
+
+        control_gb = (
+            control_g / control_b
+            if control_b != 0
+            else None
+        )
+
+        if (
+            sample_gb is not None
+            and control_gb is not None
+        ):
+
+            delta_gb = (
+                sample_gb -
+                control_gb
             )
 
-        elif predicted_no < 2:
-
-            st.warning(
-                "저농도 NO 영역에서는 현재 모델의 "
-                "예측 오차가 상대적으로 큽니다."
+            st.write(
+                f"Sample G/B: **{sample_gb:.4f}**"
             )
 
-        else:
-
-            st.success(
-                "예측값이 모델의 주요 학습 범위 내에 있습니다."
+            st.write(
+                f"Control G/B: **{control_gb:.4f}**"
             )
 
-st.divider()
+            st.write(
+                f"ΔG/B: **{delta_gb:.4f}**"
+            )
 
-st.caption(
-    "본 프로그램은 RAW 264.7 세포 배양액의 RGB 기반 "
-    "NO 농도 예측을 위한 연구용 screening tool입니다. "
-    "Griess assay를 대체하는 정량 분석법이 아닙니다."
-)
+
+        # =================================================
+        # Normalized RGB information
+        # =================================================
+
+        with st.expander(
+            "Normalized RGB 확인"
+        ):
+
+            st.write("**Sample**")
+
+            st.write(
+                f"R: {sample_norm_r:.4f}"
+            )
+
+            st.write(
+                f"G: {sample_norm_g:.4f}"
+            )
+
+            st.write(
+                f"B: {sample_norm_b:.4f}"
+            )
+
+            st.write("**Control**")
+
+            st.write(
+                f"R: {control_norm_r:.4f}"
+            )
+
+            st.write(
+                f"G: {control_norm_g:.4f}"
+            )
+
+            st.write(
+                f"B: {control_norm_b:.4f}"
+            )
+
+
+        # =================================================
+        # Notice
+        # =================================================
+
+        st.info(
+            "본 모델은 RAW 264.7 세포 배양액의 "
+            "색상 정보를 이용한 연구용 예비 스크리닝 모델입니다. "
+            "Griess assay를 대체하는 정량 분석법이 아닙니다."
+        )
