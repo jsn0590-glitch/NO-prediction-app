@@ -4,7 +4,7 @@ import pandas as pd
 import joblib
 import colorsys
 from PIL import Image
-app_icon = Image.open("NO predictor_PNG")
+app_icon = Image.open("NO predictor_PNG.png")
 
 # -----------------------------
 # Page settings
